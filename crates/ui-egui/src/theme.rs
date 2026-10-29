@@ -196,6 +196,7 @@ pub enum CjkPreference {
     Default,
     SimplifiedChinese,
     TraditionalChinese,
+    Korean,
 }
 
 impl CjkPreference {
@@ -204,6 +205,7 @@ impl CjkPreference {
         match code {
             "zh-hans" => Self::SimplifiedChinese,
             "zh-hant" => Self::TraditionalChinese,
+            "ko" => Self::Korean,
             _ => Self::Default,
         }
     }
@@ -245,7 +247,7 @@ fn installed_fallback_need(cjk: CjkPreference, has_embedded_hans: bool) -> crate
         CjkPreference::SimplifiedChinese if has_embedded_hans => Need::Other,
         CjkPreference::SimplifiedChinese => Need::Hans,
         CjkPreference::TraditionalChinese => Need::Hant,
-        CjkPreference::Default => Need::Other,
+        CjkPreference::Default | CjkPreference::Korean => Need::Other,
     }
 }
 
@@ -271,6 +273,22 @@ fn installed_fallback_need(cjk: CjkPreference, has_embedded_hans: bool) -> crate
 pub fn installed_font_definitions(cjk: CjkPreference) -> FontDefinitions {
     #[cfg_attr(target_arch = "wasm32", expect(unused_mut))]
     let mut fonts = font_definitions_for(cjk == CjkPreference::SimplifiedChinese);
+    if cjk == CjkPreference::Korean {
+        // Keep Inter as the UI primary face, but prefer Korean OFL glyphs over Japanese CJK.
+        let korean: Vec<String> = pdfcraft_fonts::CRAFT_FONTS.iter()
+            .filter(|face| face.covers("Kore") || face.covers("Hang"))
+            .map(|face| face.name())
+            .collect();
+        let japanese: Vec<String> = pdfcraft_fonts::ui_japanese_fonts().iter().map(|face| face.name()).collect();
+        for stack in fonts.families.values_mut() {
+            let selected: Vec<String> = stack.iter().filter(|name| korean.contains(name)).cloned().collect();
+            stack.retain(|name| !korean.contains(name));
+            let start = stack.iter().position(|name| japanese.contains(name)).unwrap_or(stack.len());
+            for (index, name) in selected.into_iter().enumerate() {
+                stack.insert(start.saturating_add(index).min(stack.len()), name);
+            }
+        }
+    }
     #[cfg(not(target_arch = "wasm32"))]
     {
         use crate::system_fonts::{Need, fallback};
@@ -540,3 +558,21 @@ pub fn readable(color: Color32, background: Color32, text: Color32) -> Color32 {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod korean_interface_preference_tests {
+    use super::*;
+
+    #[test]
+    fn locale_ko_selects_korean_font_order() {
+        assert_eq!(CjkPreference::for_language("ko"), CjkPreference::Korean);
+        assert_eq!(CjkPreference::for_language("ja"), CjkPreference::Default);
+        assert_eq!(CjkPreference::for_language("zh-hans"), CjkPreference::SimplifiedChinese);
+    }
+
+    #[test]
+    fn korean_font_preference_preserves_primary_font() {
+        let fonts = installed_font_definitions(CjkPreference::Korean);
+        assert!(fonts.families[&FontFamily::Proportional].iter().any(|name| name == "Inter"));
+    }
+}

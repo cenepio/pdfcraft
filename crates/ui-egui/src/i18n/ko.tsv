@@ -2794,3 +2794,22 @@ theme	Appearance	모양
 	Rotate the selected pages clockwise	선택한 페이지를 시계 방향으로 회전
 	Extract the selected pages…	선택한 페이지 추출…
 	Delete the selected pages	선택한 페이지 삭제
+
+# Korean catalog parity additions (MIT OR Apache-2.0)
+	The certificate of {} has critical extensions PdfCraft does not recognize, so it is not used to vouch for {}.	{} 인증서에 PdfCraft가 인식하지 못하는 중요 확장 필드가 있어 {}의 신뢰성을 확인하는 데 사용하지 않습니다.
+	The timestamp authority's certificate is not issued for time stamping.	타임스탬프 발급 기관의 인증서는 타임스탬프 용도로 발급되지 않았습니다.
+	No field in this form calculates its value yet. Give a field a calculation on the Calculate tab of its properties, and it shows here.	이 양식에는 아직 계산식이 설정된 필드가 없습니다. 필드 속성의 '계산' 탭에서 계산식을 설정하면 여기에 표시됩니다.
+	Set calculation order	계산 순서 설정
+@plural	{n} calculation now uses the new name.|{n} calculations now use the new name.	{n}개 계산식이 이제 새 이름을 사용합니다.
+@plural	The calculation order has {n} entry that calculates nothing. Fix order removes it.|The calculation order has {n} entries that calculate nothing. Fix order removes them.	계산 순서에 실제로 계산하지 않는 항목이 {n}개 있습니다. '순서 수정'을 실행하면 제거됩니다.
+@plural	{fields} reads it|{fields} read it	{fields}에서 이 값을 참조합니다.
+@plural	{n} field shows an old value|{n} fields show old values	{n}개 필드에 이전 값이 표시됩니다.
+@plural	{field} calculates before {fields}, which it reads.|{field} calculates before {fields}, which it reads.	{field}이(가) 참조하는 {fields}보다 먼저 계산됩니다.
+@plural	{n} more field calculates too early.|{n} more fields calculate too early.	그 외 {n}개 필드가 너무 일찍 계산됩니다.
+@plural	{fields} is missing from the order saved in the PDF, so other PDF viewers may not calculate it.|{fields} are missing from the order saved in the PDF, so other PDF viewers may not calculate them.	{fields}이(가) PDF에 저장된 계산 순서에서 누락되어 다른 PDF 뷰어에서는 계산되지 않을 수 있습니다.
+	Reshape comment	주석 모양 다시 지정
+	The signature's signed attributes have no content type, which CMS requires; it was read anyway.	서명된 속성에 CMS에서 요구하는 콘텐츠 유형이 없지만, 해당 서명을 읽었습니다.
+	This signature uses an RSA key shorter than 2048 bits, which is no longer considered strong enough for signatures. It still validates, but it should not be relied on.	이 서명은 2,048비트보다 짧은 RSA 키를 사용하므로 현재의 서명 보안 권장 수준에 미치지 못합니다. 검증에는 성공했지만 신뢰하지 않는 것이 좋습니다.
+	The signature's signed attributes have no message digest, so the signature does not cover the document.	서명된 속성에 메시지 다이제스트가 없어 이 서명은 문서 내용을 보호하지 못합니다.
+	The signature's signed attributes name a content type other than data, so it is not a signature of the document.	서명된 속성의 콘텐츠 유형이 '데이터'가 아니므로 문서 자체에 대한 서명이 아닙니다.
+	Remove {standard} identification	{standard} 식별 정보 제거

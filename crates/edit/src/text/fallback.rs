@@ -18,6 +18,9 @@ pub(crate) fn needs_type3(text: &str) -> bool {
 /// The `/Name` of the Type 3 fonts generated for Japanese text.
 const JAPANESE_FONT_NAME: &str = "PCJapanese";
 
+/// Generated Type 3 font identity for Korean replacement text.
+const KOREAN_FONT_NAME: &str = "PCKorean";
+
 /// The `/Name` of the Type 3 fonts generated for Hebrew text.
 const HEBREW_FONT_NAME: &str = "PCHebrew";
 
@@ -30,7 +33,7 @@ pub(super) fn is_type3_fallback(font: &Dict) -> bool {
     font.name(b"Subtype") == Some(b"Type3")
         && font
             .name(b"Name")
-            .is_some_and(|n| n == JAPANESE_FONT_NAME.as_bytes() || n == HEBREW_FONT_NAME.as_bytes() || n == LATIN_FONT_NAME.as_bytes())
+            .is_some_and(|n| n == JAPANESE_FONT_NAME.as_bytes() || n == KOREAN_FONT_NAME.as_bytes() || n == HEBREW_FONT_NAME.as_bytes() || n == LATIN_FONT_NAME.as_bytes())
 }
 
 /// The generated font's `/Name` and its resource prefix: the bundled Latin face, Hebrew, or the
@@ -38,6 +41,8 @@ pub(super) fn is_type3_fallback(font: &Dict) -> bool {
 fn fallback_names(face: &CraftFont, hebrew: bool) -> (&'static str, &'static str) {
     if hebrew {
         (HEBREW_FONT_NAME, "PCHe")
+    } else if face.covers("Kore") || face.covers("Hang") {
+        (KOREAN_FONT_NAME, "PCKo")
     } else if face.family == "Inter" {
         (LATIN_FONT_NAME, "PCLat")
     } else {
@@ -340,7 +345,13 @@ fn no_hebrew_font() -> EditError {
 /// bundled Latin face behind them, which covers the Latin, Greek and Cyrillic letters they lack
 /// (#2593: the Japanese faces have no қ, ғ, ҳ, ә, ө, ү, ұ or һ).
 pub(crate) fn type3_faces(text: &str, family: crate::added::Family, bold: bool) -> Result<(Vec<&'static CraftFont>, bool), EditError> {
+    let korean = if text.chars().any(is_hangul_character) {
+        pdfcraft_fonts::document_korean_fonts_for_style(family == crate::added::Family::Times, bold)
+    } else {
+        Vec::new()
+    };
     let japanese = pdfcraft_fonts::document_japanese_fonts_for_style(family == crate::added::Family::Times, bold);
+    let japanese = korean.into_iter().chain(japanese).collect::<Vec<_>>();
     let latin = pdfcraft_fonts::document_latin_fonts(bold);
     if !text.chars().any(crate::bidi::is_hebrew) {
         return Ok((japanese.into_iter().chain(latin).collect(), false));
@@ -377,9 +388,9 @@ pub(super) fn type3_font(
     // The faces differ in coverage (e.g. of Cyrillic), so use the best face that has every
     // character. When none has them all, the best face reports the character it lacks. Hebrew
     // text keeps the Hebrew face and takes each character it lacks from the next face that has it.
-    let face = if hebrew { faces.first().copied() } else { fallback_face(&faces, &chars, |face, ch| japanese_glyph_from(face, ch).is_ok()) }
+    let face = if hebrew || text.chars().any(is_hangul_character) { faces.first().copied() } else { fallback_face(&faces, &chars, |face, ch| japanese_glyph_from(face, ch).is_ok()) }
         .ok_or_else(|| no_fallback_font(text))?;
-    let others: &[&CraftFont] = if hebrew { faces.get(1..).unwrap_or_default() } else { &[] };
+    let others: &[&CraftFont] = if hebrew || text.chars().any(is_hangul_character) { faces.get(1..).unwrap_or_default() } else { &[] };
     // Every outline is read before the document is touched, so a character that fails leaves it
     // as it was. Each font takes the next `per_font` characters; codes restart at 1 in each.
     let per_font = max_glyphs.clamp(1, MAX_TYPE3_GLYPHS);
@@ -598,4 +609,32 @@ pub(crate) fn source_show(metrics: &Metrics, text: &str, size: f64, space: f64, 
         }
     }
     Ok(out)
+}
+
+/// Precomposed Hangul, conjoining and compatibility jamo, and extended jamo.
+fn is_hangul_character(ch: char) -> bool {
+    matches!(u32::from(ch), 0x1100..=0x11FF | 0x3130..=0x318F | 0xA960..=0xA97F | 0xAC00..=0xD7A3 | 0xD7B0..=0xD7FF)
+}
+
+#[cfg(test)]
+mod korean_fallback_tests {
+    use super::*;
+
+    #[test]
+    fn hangul_detection_in_mixed_insurance_text() {
+        assert!(is_hangul_character('한'));
+        assert!(is_hangul_character('ᄀ'));
+        assert!(is_hangul_character('ㄱ'));
+        assert!(!is_hangul_character('A'));
+        assert!(!is_hangul_character('中'));
+        assert!(!is_hangul_character('9'));
+    }
+
+    #[test]
+    fn generated_korean_fonts_get_distinct_resource_names() {
+        let ko = CraftFont { family: "NanumGothic", style: "Regular", scripts: &["Kore", "Hang"], bytes: b"fixture" };
+        assert_eq!(fallback_names(&ko, false), (KOREAN_FONT_NAME, "PCKo"));
+        let jp = CraftFont { family: "BIZ UDPGothic", style: "Regular", scripts: &["Jpan"], bytes: b"fixture" };
+        assert_eq!(fallback_names(&jp, false), (JAPANESE_FONT_NAME, "PCJp"));
+    }
 }
