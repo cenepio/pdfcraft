@@ -1217,3 +1217,20 @@ fn date_languages_are_the_interface_languages() {
     let dates: Vec<(&str, &str)> = pdfcraft_engine::dates::DATE_LANGUAGES.iter().map(|l| (l.code, l.name)).collect();
     assert_eq!(dates, interface);
 }
+
+/// Fail the test if an existing source-language catalog grows without Korean parity.
+#[test]
+fn korean_catalog_covers_all_known_catalog_keys() {
+    use std::collections::BTreeSet;
+    let ko = Lang::from_code("ko").expect("Korean catalog registered");
+    let (rows, errors) = parse_entries(ko.0.source, ko.0.plural_forms());
+    assert!(errors.is_empty(), "invalid Korean translations: {errors:?}");
+    let actual: BTreeSet<(String, String)> = rows.into_iter().map(|row| (row.context, row.source)).collect();
+    let mut expected = BTreeSet::new();
+    for lang in &LANGUAGES {
+        let (entries, _) = parse_entries(lang.source, lang.plural_forms());
+        expected.extend(entries.into_iter().map(|entry| (entry.context, entry.source)));
+    }
+    let missing: Vec<_> = expected.difference(&actual).collect();
+    assert!(missing.is_empty(), "Korean translations missing: {missing:?}");
+}

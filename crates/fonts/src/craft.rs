@@ -121,7 +121,7 @@ pub fn ui_cjk_fonts(prefer_hans: bool) -> Vec<&'static CraftFont> {
 }
 
 fn order_cjk<'a>(faces: impl IntoIterator<Item = &'a CraftFont>, prefer_hans: bool) -> Vec<&'a CraftFont> {
-    let mut out: Vec<&'a CraftFont> = faces.into_iter().filter(|f| f.covers("Hans") || f.covers("Jpan")).collect();
+    let mut out: Vec<&'a CraftFont> = faces.into_iter().filter(|f| f.covers("Hans") || f.covers("Jpan") || f.covers("Kore") || f.covers("Hang")).collect();
     let first = if prefer_hans { "Hans" } else { "Jpan" };
     // The preferred script's faces first (a face covering both counts as preferred); within each
     // group the Japanese UI face (BIZ UDPGothic, not a serif) leads, otherwise manifest order
@@ -150,6 +150,23 @@ pub fn document_japanese_font_for_style(serif: bool, bold: bool) -> Option<&'sta
 /// Empty without craft-fonts.
 pub fn document_japanese_fonts_for_style(serif: bool, bold: bool) -> Vec<&'static CraftFont> {
     document_faces(CRAFT_FONTS, serif, bold)
+}
+
+/// Korean document faces from the separately licensed optional craft-fonts input.
+/// Neither installed system fonts nor unlicensed assets are copied into the PDF.
+pub fn document_korean_fonts_for_style(serif: bool, bold: bool) -> Vec<&'static CraftFont> {
+    korean_faces(CRAFT_FONTS, serif, bold)
+}
+
+fn korean_faces(faces: &[CraftFont], serif: bool, bold: bool) -> Vec<&CraftFont> {
+    let mut candidates: Vec<&CraftFont> = faces.iter().filter(|face| face.covers("Kore") || face.covers("Hang")).collect();
+    candidates.sort_by_key(|face| {
+        let name = face.family.to_ascii_lowercase();
+        let face_serif = ["serif", "mincho", "myeongjo", "batang"].iter().any(|s| name.contains(s));
+        let face_bold = matches!(face.style, "Bold" | "SemiBold");
+        (face_serif != serif, face_bold != bold)
+    });
+    candidates
 }
 
 /// The scripts the bundled Inter faces are for.
@@ -371,5 +388,36 @@ mod tests {
             assert_eq!(ui.first().map(|f| f.family), Some("BIZ UDPGothic"));
         }
         assert_eq!(document_japanese_font().map(|f| f.family), Some("Shippori Mincho"));
+    }
+}
+
+#[cfg(test)]
+mod korean_font_priority_tests {
+    use super::*;
+
+    #[test]
+    fn korean_document_faces_prioritize_real_family_and_weight() {
+        let faces = [
+            CraftFont { family: "Fixture Sans", style: "Regular", scripts: &["Kore"], bytes: b"sans" },
+            CraftFont { family: "Fixture Serif", style: "Regular", scripts: &["Hang"], bytes: b"serif" },
+            CraftFont { family: "Fixture Sans", style: "Bold", scripts: &["Kore"], bytes: b"bold" },
+            CraftFont { family: "Fixture Japanese", style: "Regular", scripts: &["Jpan"], bytes: b"jp" },
+        ];
+        let bold = korean_faces(&faces, false, true);
+        assert_eq!((bold[0].family, bold[0].style), ("Fixture Sans", "Bold"));
+        let serif = korean_faces(&faces, true, false);
+        assert_eq!(serif[0].family, "Fixture Serif");
+        assert_eq!(bold.len(), 3);
+        assert!(korean_faces(&faces[3..], false, false).is_empty());
+    }
+
+    #[test]
+    fn korean_ui_face_is_in_the_cjk_fallback_chain() {
+        let ko = CraftFont { family: "NanumGothic", style: "Regular", scripts: &["Hang", "Kore"], bytes: b"ko" };
+        let ja = CraftFont { family: "BIZ UDPGothic", style: "Regular", scripts: &["Jpan"], bytes: b"ja" };
+        let candidates = order_cjk([&ko, &ja], false);
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].family, "BIZ UDPGothic");
+        assert_eq!(candidates[1].family, "NanumGothic");
     }
 }
